@@ -53,7 +53,7 @@ def get_args_parser():
     parser.add_argument('--nheads', default=8, type=int,
                         help="Number of attention heads inside the transformer's attentions")
                         ########## number of maximum objects to be detected in the images 
-    parser.add_argument('--num_queries', default=50, type=int,
+    parser.add_argument('--num_queries', default=100, type=int,
                         help="Number of query slots")
     parser.add_argument('--pre_norm', action='store_true')
 
@@ -176,11 +176,20 @@ def main(args):
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
-        model_without_ddp.load_state_dict(checkpoint['model'])
+
+        #we do this so that the pretrain weights be compatible with our needs
+        #we delete some of the weights that causes mismatch
+        del checkpoint["model"]["class_embed.weight"]
+        del checkpoint["model"]["class_embed.bias"]
+        del checkpoint["model"]["query_embed.weight"]
+
+
+        model_without_ddp.load_state_dict(checkpoint['model'],strict=False)
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
+
 
     if args.eval:
         test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
