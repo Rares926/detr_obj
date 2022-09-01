@@ -171,7 +171,6 @@ def infer(images_path, model, postprocessors, device, output_path):
         outputs["pred_boxes"] = outputs["pred_boxes"].cpu()
 
         probas = outputs['pred_logits'].softmax(-1)[0, :, :-1]
-        # keep = probas.max(-1).values > 0.85
         keep = probas.max(-1).values > args.thresh
 
         bboxes_scaled = rescale_bboxes(outputs['pred_boxes'][0, keep], orig_image.size)
@@ -203,6 +202,7 @@ def infer(images_path, model, postprocessors, device, output_path):
                 ])
             bbox = bbox.reshape((4, 2))
             cv2.polylines(img, [bbox], True, (0, 255, 0), 2)
+            
 
         # img_save_path = os.path.join(output_path, filename)
         # cv2.imwrite(img_save_path, img)
