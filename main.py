@@ -15,7 +15,7 @@ import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
-
+from util.checkpoint_ops import clean
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
@@ -184,7 +184,10 @@ def main(args):
         del checkpoint["model"]["class_embed.bias"]
         del checkpoint["model"]["query_embed.weight"]
 
-        model_without_ddp.transformer.load_state_dict(checkpoint['model'], strict=False)
+        #clean dict so that it loads only transformer weights without backbone 
+        checkpoint = clean(checkpoint)
+
+        model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
         # model_without_ddp.load_state_dict(checkpoint['model'],strict=False)
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
@@ -220,8 +223,10 @@ def main(args):
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'args': args,
+                    'mobilenet_v2':model_without_ddp.backbone.state_dict(),
+                    'transformer': model_without_ddp.transformer.state_dict()
                 }, checkpoint_path)
-
+                # a little up i added mobilenet and transformer keys so that maybe i'll load them separatly 
         test_stats, coco_evaluator = evaluate(
             model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir
         )

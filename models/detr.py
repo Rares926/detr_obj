@@ -11,8 +11,7 @@ from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
                        is_dist_avail_and_initialized)
 
-# from .backbone import build_backbone
-# from .custom_backbone import build_mobilenetv2_backbone
+from .backbone import build_backbone
 from .mobilenet_v2_backbone import build_mobilenet_backbone
 
 from .matcher import build_matcher
@@ -328,6 +327,10 @@ def build(args):
     backbone = build_mobilenet_backbone(args)
 
     transformer = build_transformer(args)
+
+    #freezing the transformer temporary
+    for param in transformer.parameters():
+        param.requires_grad = False
 
     model = DETR(
         backbone,
