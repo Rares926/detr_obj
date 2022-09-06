@@ -183,8 +183,11 @@ def infer(images_path, model, postprocessors, device, output_path):
         enc_attn_weights = enc_attn_weights[0]
         dec_attn_weights = dec_attn_weights[0].cpu()
 
-        # get the feature map shape
-        h, w = conv_features['0'].tensors.shape[-2:]
+        # get the feature map shape for res net 
+        # h, w = conv_features['0'].tensors.shape[-2:]
+
+        # get the feature map shape for mobilenet
+        h, w = conv_features['18'].tensors.shape[-2:]
 
         if len(bboxes_scaled) == 0:
             continue

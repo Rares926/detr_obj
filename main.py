@@ -126,6 +126,7 @@ def main(args):
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         model_without_ddp = model.module
+
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
@@ -183,8 +184,8 @@ def main(args):
         del checkpoint["model"]["class_embed.bias"]
         del checkpoint["model"]["query_embed.weight"]
 
-
-        model_without_ddp.load_state_dict(checkpoint['model'],strict=False)
+        model_without_ddp.transformer.load_state_dict(checkpoint['model'], strict=False)
+        # model_without_ddp.load_state_dict(checkpoint['model'],strict=False)
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])

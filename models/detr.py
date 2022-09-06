@@ -324,8 +324,6 @@ def build(args):
     num_classes = 2
     device = torch.device(args.device)
 
-
-
     # backbone = build_backbone(args)
     backbone = build_mobilenet_backbone(args)
 
