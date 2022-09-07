@@ -1,6 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import argparse
 import datetime
+from email.policy import strict
 import json
 import random
 import time
@@ -31,6 +32,10 @@ def get_args_parser():
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
                         help="Path to the pretrained model. If set, only the mask head will be trained")
+    parser.add_argument('--freeze_backbone', action='store_true',
+                        help="If true, only the backbone will be trained")
+    parser.add_argument('--freeze_transformer', action='store_true',
+                        help="If true, only the transformer will be trained")
     # * Backbone
     parser.add_argument('--backbone', default='resnet50', type=str,
                         help="Name of the convolutional backbone to use")
@@ -185,14 +190,16 @@ def main(args):
         del checkpoint["model"]["query_embed.weight"]
 
         #clean dict so that it loads only transformer weights without backbone 
-        checkpoint = clean(checkpoint)
+        # checkpoint = clean(checkpoint)
 
-        model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
+        model_without_ddp.backbone.load_state_dict(checkpoint['mobilenet_v2'], strict=False)
+        model_without_ddp.transformer.load_state_dict(checkpoint['transformer'], strict=False)
+
         # model_without_ddp.load_state_dict(checkpoint['model'],strict=False)
-        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
-            args.start_epoch = checkpoint['epoch'] + 1
+        # if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
+        #     optimizer.load_state_dict(checkpoint['optimizer'])
+        #     lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+        #     args.start_epoch = checkpoint['epoch'] + 1
 
 
     if args.eval:
@@ -223,7 +230,7 @@ def main(args):
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'args': args,
-                    'mobilenet_v2':model_without_ddp.backbone.state_dict(),
+                    'backbone':model_without_ddp.backbone.state_dict(),
                     'transformer': model_without_ddp.transformer.state_dict()
                 }, checkpoint_path)
                 # a little up i added mobilenet and transformer keys so that maybe i'll load them separatly 

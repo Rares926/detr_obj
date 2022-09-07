@@ -327,10 +327,14 @@ def build(args):
     backbone = build_mobilenet_backbone(args)
 
     transformer = build_transformer(args)
+  
+    if args.freeze_transformer is True:
+        for param in transformer.parameters():
+            param.requires_grad = False
 
-    #freezing the transformer temporary
-    for param in transformer.parameters():
-        param.requires_grad = False
+    if args.freeze_backbone is True:
+        for param in backbone.parameters():
+            param.requires_grad = False
 
     model = DETR(
         backbone,
