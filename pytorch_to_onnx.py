@@ -11,6 +11,7 @@ import cv2
 import onnxruntime
 from util.misc import nested_tensor_from_tensor_list
 from torch import nn, Tensor
+import traceback
 
 def get_args_parser():
 
@@ -23,10 +24,14 @@ def get_args_parser():
     parser.add_argument('--lr_drop', default=200, type=int)
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
+    parser.add_argument('--num_classes', default=1, type=int)
 
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
                         help="Path to the pretrained model. If set, only the mask head will be trained")
+    parser.add_argument('--show_architecture', action='store_true',
+                        help="If true, print model architecture")
+
     # * Backbone
     parser.add_argument('--backbone', default='resnet50', type=str,
                         help="Name of the convolutional backbone to use")
@@ -34,6 +39,8 @@ def get_args_parser():
                         help="If true, we replace stride with dilation in the last convolutional block (DC5)")
     parser.add_argument('--position_embedding', default='sine', type=str, choices=('sine', 'learned'),
                         help="Type of positional embedding to use on top of the image features")
+    parser.add_argument('--freeze_backbone', action='store_true',
+                        help="If true, only the backbone will be trained")
 
     # * Transformer
     parser.add_argument('--enc_layers', default=6, type=int,
@@ -51,6 +58,8 @@ def get_args_parser():
     parser.add_argument('--num_queries', default=60, type=int,
                         help="Number of query slots")
     parser.add_argument('--pre_norm', action='store_true')
+    parser.add_argument('--freeze_transformer', action='store_true',
+                        help="If true, only the transformer will be trained")
 
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
@@ -80,7 +89,9 @@ def get_args_parser():
                         help='device to use for training / testing')
     parser.add_argument('--resume', default='', help='resume from checkpoint')
 
-
+    # * Onnx parameters
+    parser.add_argument('--onnx_path', default='',
+                        help='Path where to save model in the onnx format')
 
     return parser
 
@@ -109,12 +120,13 @@ def export_to_onnx(model, export_path, device):
                         output_names=output_names,
                         verbose=True)
 
-def inference_onnx_model(model, onnx_model_path, device, image_path):
+def validate_exported_onnx_model(model, args):
+
+    model.to("cpu")
 
     model.eval()
 
-    model_path = os.path.join(onnx_model_path, "detr_flat_bars.onnx")
-    # onnx_detr = cv2.dnn.readNetFromONNX(model_path) opencv crashes
+    model_path = os.path.join(args.onnx_path, "detr_flat_bars.onnx")
 
     def to_numpy(tensor):
         if tensor.requires_grad:
@@ -129,17 +141,36 @@ def inference_onnx_model(model, onnx_model_path, device, image_path):
     with torch.no_grad():
         detr_outs = model(*test_inputs[0])
 
-    test_inputs, _ = torch.jit._flatten(test_inputs)
+    #- "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
+    #                dictionnaries containing the two above keys for each decoder layer.
 
+    if "aux_outputs" in detr_outs.keys():
+        del detr_outs["aux_outputs"]
+
+    detr_outs, _ = torch.jit._flatten(detr_outs)
+    detr_outs = list(map(to_numpy, detr_outs))
+
+    test_inputs, _ = torch.jit._flatten(test_inputs)
     test_inputs = list(map(to_numpy, test_inputs))
+
     #load onnx model 
     onnx_detr = onnxruntime.InferenceSession(model_path)
 
     ort_inputs = dict((onnx_detr.get_inputs()[i].name, inpt) for i, inpt in enumerate(test_inputs))
 
-    onnx_detr_outs = onnx_detr.run(["pred_logits", "pred_boxes"], ort_inputs)
+    onnx_detr_outs = onnx_detr.run(['pred_logits', 'pred_boxes'], ort_inputs)
 
-    print(onnx_detr_outs)
+    #rtol Relative tolerance.
+    #atol Absolute tolerance (they must both be specified)
+    #values for dtype float16 rtol 1e-3 atol 1e-5
+
+    for i, element in enumerate(detr_outs):
+        try:
+            torch.testing.assert_allclose(element, onnx_detr_outs[i], rtol=1e-03, atol=1e-05)
+        except AssertionError as error:
+            traceback.print_exception(error)
+        except Exception as er:
+            traceback.print_exception(er)
 
 
 if __name__ == "__main__":
@@ -150,27 +181,28 @@ if __name__ == "__main__":
     device = torch.device(args.device)
 
     # build model 
+    print("____Model build____")
     model, _, postprocessors = build_model(args)
 
     # load checkpoint
     if args.resume:
         checkpoint = torch.load(args.resume, map_location='cpu')
         model.load_state_dict(checkpoint['model'])
+    else:
+        print("___Checkpoint path not given___")
 
     # move model on gpu
-    # model.to(device)
+    model.to(device)
 
     # show model architecture 
-    # print(model)
-
-    new_model_path="/media/storagezimmer1/RaresPatrascu/projects/detR/detr_obj/workspace/converted_models"
+    if args.show_architecture:
+        print(model)
 
     # export to onnx
-    # export_to_onnx(model,new_model_path,device)
+    export_to_onnx(model,args.onnx_path,device)
 
-    image_path="/media/storagezimmer1/RaresPatrascu/projects/detR/detr_obj/workspace/datasets/coco_format/flat_bars_crop_64_size_614/test_images/patch_00007_ts64_rot180.jpg"
     #test onnx model 
-    inference_onnx_model(model, new_model_path, device, image_path)
+    validate_exported_onnx_model(model, args)
 
 
 

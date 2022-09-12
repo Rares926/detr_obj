@@ -28,14 +28,13 @@ def get_args_parser():
     parser.add_argument('--lr_drop', default=200, type=int)
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
+    parser.add_argument('--num_classes', default=1, type=int)
 
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
                         help="Path to the pretrained model. If set, only the mask head will be trained")
-    parser.add_argument('--freeze_backbone', action='store_true',
-                        help="If true, only the backbone will be trained")
-    parser.add_argument('--freeze_transformer', action='store_true',
-                        help="If true, only the transformer will be trained")
+
+
     # * Backbone
     parser.add_argument('--backbone', default='resnet50', type=str,
                         help="Name of the convolutional backbone to use")
@@ -43,6 +42,8 @@ def get_args_parser():
                         help="If true, we replace stride with dilation in the last convolutional block (DC5)")
     parser.add_argument('--position_embedding', default='sine', type=str, choices=('sine', 'learned'),
                         help="Type of positional embedding to use on top of the image features")
+    parser.add_argument('--freeze_backbone', action='store_true',
+                        help="If true, only the backbone will be trained")
 
     # * Transformer
     parser.add_argument('--enc_layers', default=6, type=int,
@@ -61,6 +62,8 @@ def get_args_parser():
     parser.add_argument('--num_queries', default=100, type=int,
                         help="Number of query slots")
     parser.add_argument('--pre_norm', action='store_true')
+    parser.add_argument('--freeze_transformer', action='store_true',
+                        help="If true, only the transformer will be trained")
 
     # * Segmentation
     parser.add_argument('--masks', action='store_true',
@@ -132,8 +135,11 @@ def main(args):
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         model_without_ddp = model.module
 
-    n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print('number of params:', n_parameters)
+    n_parameters = sum(p.numel() for p in model.parameters())
+    n_training_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    print('\n number of params:', n_parameters)
+    print('\n training params:', n_training_params)
 
     param_dicts = [
         {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
@@ -183,23 +189,29 @@ def main(args):
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
 
-        #we do this so that the pretrain weights be compatible with our needs
-        #we delete some of the weights that causes mismatch
+        # we do this so that the pretrain weights be compatible with our needs
+        # we delete some of the weights that causes mismatch
+        # can t erase the model from checkpoint bc it holds more info that only the backbone and the transformer 
+        # will see if we need that information 
+
         del checkpoint["model"]["class_embed.weight"]
         del checkpoint["model"]["class_embed.bias"]
         del checkpoint["model"]["query_embed.weight"]
 
-        #clean dict so that it loads only transformer weights without backbone 
+        # clean dict so that it loads only transformer weights without backbone 
         # checkpoint = clean(checkpoint)
 
-        model_without_ddp.backbone.load_state_dict(checkpoint['mobilenet_v2'], strict=False)
+        model_without_ddp.backbone.load_state_dict(checkpoint['backbone'], strict=False)
         model_without_ddp.transformer.load_state_dict(checkpoint['transformer'], strict=False)
 
         # model_without_ddp.load_state_dict(checkpoint['model'],strict=False)
+
         # if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
-        #     optimizer.load_state_dict(checkpoint['optimizer'])
+        #     if args.freeze_backbone==False and args.freeze_transformer==False:
+        #         optimizer.load_state_dict(checkpoint['optimizer'])
         #     lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
         #     args.start_epoch = checkpoint['epoch'] + 1
+        #     args.epochs = args.start_epoch + args.epochs
 
 
     if args.eval:

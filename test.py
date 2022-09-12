@@ -59,10 +59,15 @@ def get_args_parser():
     parser.add_argument('--lr_drop', default=200, type=int)
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
+    parser.add_argument('--num_classes', default=1, type=int)
 
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
                         help="Path to the pretrained model. If set, only the mask head will be trained")
+    parser.add_argument('--freeze_backbone', action='store_true',
+                        help="If true, only the backbone will be trained")
+    parser.add_argument('--freeze_transformer', action='store_true',
+                        help="If true, only the transformer will be trained")
     # * Backbone
     parser.add_argument('--backbone', default='resnet50', type=str,
                         help="Name of the convolutional backbone to use")
@@ -231,6 +236,7 @@ if __name__ == "__main__":
     if args.resume:
         checkpoint = torch.load(args.resume, map_location='cpu')
         model.load_state_dict(checkpoint['model'])
+
     model.to(device)
     image_paths = get_images(args.data_path)
 

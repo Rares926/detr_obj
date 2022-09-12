@@ -320,11 +320,14 @@ def build(args):
     #     num_classes = 250
 
     ######## should this be 1 or 2 given that later in code it automatically adds 1 
-    num_classes = 2
+    num_classes = args.num_classes
+    
     device = torch.device(args.device)
 
-    # backbone = build_backbone(args)
-    backbone = build_mobilenet_backbone(args)
+    if args.backbone == "mobilenet_v2":
+        backbone = build_mobilenet_backbone(args)
+    else:
+        backbone = build_backbone(args)
 
     transformer = build_transformer(args)
   
@@ -335,6 +338,12 @@ def build(args):
     if args.freeze_backbone is True:
         for param in backbone.parameters():
             param.requires_grad = False
+
+    # if args.freeze_backbone is False and args.freeze_transformer is False:
+    #     for param in backbone.parameters():
+    #         param.requires_grad = True
+    #     for param in transformer.parameters():
+    #         param.requires_grad = True
 
     model = DETR(
         backbone,
