@@ -22,7 +22,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_backbone', default=1e-5, type=float)
-    parser.add_argument('--batch_size', default=2, type=int)
+    parser.add_argument('--batch_size', default=1, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=300, type=int)
     parser.add_argument('--lr_drop', default=200, type=int)
@@ -43,7 +43,7 @@ def get_args_parser():
     parser.add_argument('--position_embedding', default='sine', type=str, choices=('sine', 'learned'),
                         help="Type of positional embedding to use on top of the image features")
     parser.add_argument('--freeze_backbone', action='store_true',
-                        help="If true, only the backbone will be trained")
+                        help="If true, only the transformer will be trained")
 
     # * Transformer
     parser.add_argument('--enc_layers', default=6, type=int,
@@ -63,7 +63,7 @@ def get_args_parser():
                         help="Number of query slots")
     parser.add_argument('--pre_norm', action='store_true')
     parser.add_argument('--freeze_transformer', action='store_true',
-                        help="If true, only the transformer will be trained")
+                        help="If true, only the backbone will be trained")
 
     # * Segmentation
     parser.add_argument('--masks', action='store_true',

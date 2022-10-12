@@ -13,6 +13,7 @@ from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
 
 from .backbone import build_backbone
 from .mobilenet_v2_backbone import build_mobilenet_backbone
+from .yolo_backbone import build_yolo_backbone
 
 from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
@@ -326,9 +327,12 @@ def build(args):
 
     if args.backbone == "mobilenet_v2":
         backbone = build_mobilenet_backbone(args)
-    else:
+    elif args.backbone == "resnet50":
         backbone = build_backbone(args)
+    elif args.backbone == "yolo":
+        backbone = build_yolo_backbone(args)
 
+    print(backbone)
     transformer = build_transformer(args)
   
     if args.freeze_transformer is True:
